@@ -7,13 +7,15 @@ using UnityEngine.UI;
 
 public class ShapesManager : MonoBehaviour
 {
-    public Text DebugText, ScoreText;
+    public Text DebugText, ScoreText, TurnsText;
     public bool ShowDebugInfo = false;
     //candy graphics taken from http://opengameart.org/content/candy-pack-1
 
     public ShapesArray shapes;
 
     private int score;
+    private static int turns;
+    private bool validMove = false;
 
     public readonly Vector2 BottomRight = new Vector2(-2.37f, -4.27f);
     public readonly Vector2 CandySize = new Vector2(0.7f, 0.7f);
@@ -34,6 +36,7 @@ public class ShapesManager : MonoBehaviour
     void Awake()
     {
         DebugText.enabled = ShowDebugInfo;
+        Levels.InitLevels();
     }
 
     // Use this for initialization
@@ -184,6 +187,8 @@ public class ShapesManager : MonoBehaviour
         if (ShowDebugInfo)
             DebugText.text = DebugUtilities.GetArrayContents(shapes);
 
+            HandleWinLoseConditions();
+
         if (state == GameState.None)
         {
             //user has clicked or touched
@@ -252,6 +257,7 @@ public class ShapesManager : MonoBehaviour
 
     private IEnumerator FindMatchesAndCollapse(RaycastHit2D hit2)
     {
+        validMove = true;
         //get the second item that was part of the swipe
         var hitGo2 = hit2.collider.gameObject;
         shapes.Swap(hitGo, hitGo2);
@@ -274,8 +280,13 @@ public class ShapesManager : MonoBehaviour
             hitGo.transform.positionTo(Constants.AnimationDuration, hitGo2.transform.position);
             hitGo2.transform.positionTo(Constants.AnimationDuration, hitGo.transform.position);
             yield return new WaitForSeconds(Constants.AnimationDuration);
-
+            validMove = false;
             shapes.UndoSwap();
+        }
+
+        if (validMove) {
+            DecreaseTurns();
+            validMove = false;
         }
 
         //if more than 3 matches and no Bonus is contained in the line, we will award a new Bonus
@@ -332,7 +343,6 @@ public class ShapesManager : MonoBehaviour
 
             //will wait for both of the above animations
             yield return new WaitForSeconds(Constants.MoveAnimationMinDuration * maxDistance);
-
             //search if there are matches with the new/collapsed items
             totalMatches = shapes.GetMatches(collapsedCandyInfo.AlteredCandy).
                 Union(shapes.GetMatches(newCandyInfo.AlteredCandy)).Distinct();
@@ -341,7 +351,6 @@ public class ShapesManager : MonoBehaviour
 
             timesRun++;
         }
-
         state = GameState.None;
         StartCheckForPotentialMatches();
     }
@@ -435,7 +444,9 @@ public class ShapesManager : MonoBehaviour
     private void InitializeVariables()
     {
         score = 0;
+        turns = Levels.Data[0].Turns;
         ShowScore();
+        ShowTurns();
     }
 
     private void IncreaseScore(int amount)
@@ -444,9 +455,30 @@ public class ShapesManager : MonoBehaviour
         ShowScore();
     }
 
+    private void DecreaseTurns() {
+        turns -= 1;
+        ShowTurns();
+    }
+
     private void ShowScore()
     {
-        ScoreText.text = "Score: " + score.ToString();
+        ScoreText.text = "Score : " + score.ToString();
+    }
+
+    private void ShowTurns() {
+        TurnsText.text = "Turns Remaining : " + turns.ToString();
+    }
+
+    private void HandleWinLoseConditions() {
+        if (turns <= 0) {
+            state = GameState.None;
+            // TODO: Load the level data procedurally instead of using a static level
+            if (score >= Levels.Data[0].Score) {
+                Debug.Log("You win!");
+            } else {
+                Debug.Log("You Lost!");
+            }
+        }
     }
 
     /// <summary>
@@ -563,6 +595,8 @@ public class ShapesManager : MonoBehaviour
         throw new System.Exception("Wrong type, check your premade level");
     }
 
-
+    public static void SetTurns(int t) {
+        turns = t;
+    }
 
 }
